@@ -18,7 +18,7 @@
   --text-h-xl: 32px;
   --text-h-2xl: 40px;
   --text-h-3xl: 48px;
-  
+
    /* Line height por tamaño */
   --leading-xs: 1.33;
   --leading-sm: 1.42;
@@ -46,6 +46,7 @@
 .font-bold-ui {
   @apply font-bold;
 }
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
