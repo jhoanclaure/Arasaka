@@ -22,14 +22,13 @@ function App() {
           </p>
         </div>
 
-        <div className="flex items-center justify-center h-screen bg-gray-100">
-          <h1 className="text-4xl font-bold text-blue-500">
-            Tailwind FUNCIONA
-          </h1>
+        <div className="bg-success-100 text-success-800 p-4 rounded-lg border border-success-500">
+          <strong>¡Todo salió bien!</strong>
+          <p>Tus cambios se han guardado correctamente.</p>
         </div>
-        
+        <button className="bg-primary-500 text-ligth-800">Mi Botón</button>
         <button
-          className="counter"
+          className="counter "
           onClick={() => setCount((count) => count + 1)}
         >
           Count is {count}
