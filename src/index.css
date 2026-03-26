@@ -108,6 +108,7 @@
   --text-h-xl: 32px;
   --text-h-2xl: 40px;
   --text-h-3xl: 48px;
+  --text-h-4xl: 92px;
 
    /* Line height por tamaño */
   --leading-xs: 1.33;
@@ -208,7 +209,6 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: var(--text-main);
   margin-top: 0;
 }
 h1,
