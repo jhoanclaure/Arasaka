@@ -9,12 +9,13 @@ import { InputCertificaciones } from "../components/InputCertificaciones";
 import { FechaInput } from "../components/FechaInput";
 
 // Asumimos que estos siguen igual o ya son responsivos
-import { ImagenUploader } from "../components/ImagenUploader";
+
 import { CategoriaCard } from "../components/carruselCards/CategoriaCard";
 import { Carousel } from "../components/carruselCards/Carrusel";
 import { DropdownCertificaciones } from "../components/DropdownCertificaciones";
 import { CertificadosGrid } from "../components/CertificadosGrid";
 import DashboardLayout from "@/layout/DashboardLayout";
+import { ImagenUploader } from "../components/ImageUploader";
 
 const ID_PORTAFOLIO_ACTUAL = "cc38c98a-8edd-4145-bd6e-e8b81280cbf9";
 
