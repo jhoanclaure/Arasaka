@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ReactCrop, type Crop, type PixelCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css"; // IMPORTANTE: Asegúrate de tener esto
 import { getCroppedImage } from "../../utils/cropImage";
-
 
 type Props = {
   image: string;
@@ -11,101 +11,111 @@ type Props = {
   saveTrigger: number;
 };
 
+// Generamos la imagen rotada de forma nativa para evitar bugs visuales
+const getRotatedImage = async (imageSrc: string, rotation: number): Promise<string> => {
+  if (rotation % 360 === 0) return imageSrc;
+
+  const image = new Image();
+  image.src = imageSrc;
+  await new Promise((resolve) => { image.onload = resolve; });
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return imageSrc;
+
+  const isRotated90 = rotation % 180 !== 0;
+  canvas.width = isRotated90 ? image.height : image.width;
+  canvas.height = isRotated90 ? image.width : image.height;
+
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.translate(-image.width / 2, -image.height / 2);
+  ctx.drawImage(image, 0, 0);
+
+  return canvas.toDataURL("image/jpeg", 1);
+};
+
 export function EditorInline({ image, rotation, showCrop, onCloseCrop, saveTrigger }: Props) {
-  const [isVertical, setIsVertical] = useState(false);
-  const isRotatedVertical = rotation % 180 !== 0;
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const [rotatedImageSrc, setRotatedImageSrc] = useState<string>(image);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const [crop, setCrop] = useState<Crop>({
     unit: "%",
     width: 90,
-    height: 70,
+    height: 90,
     x: 5,
-    y: 15,
+    y: 5,
   });
 
-  // FIX: detectar si la imagen es vertical al cargar
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    setIsVertical(img.naturalHeight > img.naturalWidth);
-  };
+  useEffect(() => {
+    let isMounted = true;
+    const processRotation = async () => {
+      const src = await getRotatedImage(image, rotation);
+      if (isMounted) setRotatedImageSrc(src);
+    };
+    processRotation();
+    return () => { isMounted = false; };
+  }, [image, rotation]);
 
   useEffect(() => {
-    if (
-      !completedCrop ||
-      !imgRef.current ||
-      completedCrop.width === 0 ||
-      completedCrop.height === 0
-    ) return;
+    if (!completedCrop || !imgRef.current || completedCrop.width === 0 || completedCrop.height === 0) return;
 
     const runCrop = async () => {
-      const cropped = await getCroppedImage(imgRef.current!, completedCrop, rotation);
+      const cropped = await getCroppedImage(imgRef.current!, completedCrop, 0);
       setCroppedImage(cropped);
       onCloseCrop();
     };
 
-    runCrop();
+    if (saveTrigger > 0) runCrop();
   }, [saveTrigger]);
 
-  //estilos centralizados según orientación real + rotación
-  const imgStyle: React.CSSProperties = {
-    transform: `rotate(${rotation}deg)`,
-    maxHeight: isRotatedVertical
-      ? (isVertical ? "260px" : "100%")
-      : (isVertical ? "280px" : "280px"),
-    maxWidth: isRotatedVertical
-      ? (isVertical ? "100%" : "260px")
-      : (isVertical ? "120px" : "100%"),  // ← clave para verticales
-    width: isVertical && !isRotatedVertical ? "auto" : undefined,
-    height: isVertical && !isRotatedVertical ? "100%" : undefined,
-  };
+  useEffect(() => {
+    setCroppedImage(null);
+  }, [rotation]);
 
   return (
-    <div className="w-full h-full max-h-[350px] bg-dark-500 flex items-center justify-center overflow-hidden">
-      <div className="flex items-center justify-center w-full h-full">
-
-        {showCrop ? (
-        <div className="h-[300px] flex items-center justify-center bg-[#1E1E1E] overflow-hidden"
-          style={{ width: isVertical ? "auto" : "100%" }}
+    <div className="w-full h-full min-h-[300px] bg-[#1E1E1E] flex items-center justify-center overflow-hidden rounded-xl p-4">
+      
+      {/* EL TRUCO ESTÁ AQUÍ:
+        Usamos display: "inline-block" en ReactCrop y display: "block" en la imagen.
+        Esto asegura que el contenedor de recorte se reduzca EXACTAMENTE al tamaño de la foto.
+      */}
+      {showCrop ? (
+        <ReactCrop
+          crop={crop}
+          onChange={(_, percentCrop) => setCrop(percentCrop)}
+          onComplete={(c) => setCompletedCrop(c)}
+          style={{ display: "inline-block", maxWidth: "100%" }}
         >
-          <ReactCrop
-            crop={crop}
-            onChange={(c) => setCrop(c)}
-            onComplete={(c) => setCompletedCrop(c)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <img
-              ref={imgRef}
-              src={image}
-              onLoad={handleImageLoad}
-              style={{
-                maxHeight: isVertical ? "280px" : "280px",
-                maxWidth:  isVertical ? "120px" : "100%",
-                width:  isVertical ? "auto" : undefined,
-                height: isVertical ? "100%" : undefined,
-              }}
-              className="object-contain"
-            />
-          </ReactCrop>
-        </div>
-      ) : (
-        <div className="w-full h-[300px] flex items-center justify-center bg-black overflow-hidden">
           <img
-            src={croppedImage || image}
-            onLoad={handleImageLoad}
+            ref={imgRef}
+            src={rotatedImageSrc}
             style={{
-              transform: `rotate(${rotation}deg)`,
-              maxHeight: isRotatedVertical ? "100%" : "280px",
-              maxWidth:  isRotatedVertical ? "280px" : "100%",
+              display: "block",
+              maxWidth: "100%",
+              maxHeight: "50vh", // Usar vh es mejor en móviles para que no se salga de la pantalla
+              width: "auto",
+              height: "auto",
             }}
-            className="object-contain"
+            alt="Crop preview"
           />
-        </div>
+        </ReactCrop>
+      ) : (
+        <img
+          src={croppedImage || rotatedImageSrc}
+          style={{
+            display: "block",
+            maxWidth: "100%",
+            maxHeight: "50vh",
+            width: "auto",
+            height: "auto",
+          }}
+          alt="Preview"
+        />
       )}
-
-      </div>
+      
     </div>
   );
 }
