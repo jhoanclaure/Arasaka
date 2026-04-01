@@ -11,10 +11,8 @@ type Props = {
   saveTrigger: number;
 };
 
-// Generamos la imagen rotada. 
-// NUEVO: Ahora soporta diferencias de ángulos para rotar recortes previos.
+// Generamos la imagen rotada.
 const getRotatedImage = async (imageSrc: string, rotation: number): Promise<string> => {
-  // Aseguramos que la rotación siempre sea un número positivo exacto (0, 90, 180, 270)
   const normalizedRotation = ((rotation % 360) + 360) % 360;
   if (normalizedRotation === 0) return imageSrc;
 
@@ -39,15 +37,16 @@ const getRotatedImage = async (imageSrc: string, rotation: number): Promise<stri
 };
 
 export function EditorInline({ image, rotation, showCrop, onCloseCrop, saveTrigger }: Props) {
+  // 1. EL LIENZO BASE: Siempre es la foto original completa (girada a los grados actuales)
+  const [baseRotatedImage, setBaseRotatedImage] = useState<string>(image);
+  
+  // 2. EL RESULTADO: Lo que se ve cuando NO estás usando las tijeras
+  const [finalDisplayImage, setFinalDisplayImage] = useState<string>(image);
+
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
-  
-  // NUEVO: Guardamos en qué ángulo de rotación exacto se encontraba la imagen cuando se recortó
   const [cropSavedAtRotation, setCropSavedAtRotation] = useState(0);
-  
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
-  
-  // NUEVO: Un único estado maestro que decide qué se pinta en la pantalla (la original o el recorte final)
-  const [displayImage, setDisplayImage] = useState<string>(image);
+
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const [crop, setCrop] = useState<Crop>({
@@ -58,41 +57,54 @@ export function EditorInline({ image, rotation, showCrop, onCloseCrop, saveTrigg
     y: 5,
   });
 
-  // 1. Efecto maestro: Decide qué procesar visualmente cuando aprietas el botón "Rotar"
+  // Efecto A: Mantener el "Lienzo Base" actualizado con la rotación original
   useEffect(() => {
     let isMounted = true;
-    const processRotation = async () => {
+    const processBaseRotation = async () => {
+      const src = await getRotatedImage(image, rotation);
+      if (isMounted) setBaseRotatedImage(src);
+    };
+    processBaseRotation();
+    return () => { isMounted = false; };
+  }, [image, rotation]);
+
+  // Efecto B: Mantener el "Resultado Final" actualizado (Aplica rotación al recorte si giras la pantalla)
+  useEffect(() => {
+    let isMounted = true;
+    const processFinalDisplay = async () => {
       if (croppedImage) {
-        // Si ya hay un recorte guardado, calculamos cuántos grados extra se ha rotado DESPUÉS de recortar
         const diff = rotation - cropSavedAtRotation;
-        const src = await getRotatedImage(croppedImage, diff);
-        if (isMounted) setDisplayImage(src);
+        if (diff === 0) {
+          if (isMounted) setFinalDisplayImage(croppedImage);
+        } else {
+          const src = await getRotatedImage(croppedImage, diff);
+          if (isMounted) setFinalDisplayImage(src);
+        }
       } else {
-        // Si no se ha recortado nunca, simplemente rotamos la imagen original
-        const src = await getRotatedImage(image, rotation);
-        if (isMounted) setDisplayImage(src);
+        if (isMounted) setFinalDisplayImage(baseRotatedImage);
       }
     };
-    processRotation();
+    processFinalDisplay();
     return () => { isMounted = false; };
-  }, [image, rotation, croppedImage, cropSavedAtRotation]);
+  }, [baseRotatedImage, croppedImage, rotation, cropSavedAtRotation]);
 
-  // 2. Efecto para aplicar y guardar el recorte
+  // Efecto C: Extraer el recorte SIEMPRE del lienzo base original
   useEffect(() => {
     if (!completedCrop || !imgRef.current || completedCrop.width === 0 || completedCrop.height === 0) return;
 
     const runCrop = async () => {
-      // Extraemos el recorte de lo que sea que esté visualmente en pantalla
+      // Como imgRef apunta a baseRotatedImage, siempre sacamos el HD de la original
       const cropped = await getCroppedImage(imgRef.current!, completedCrop, 0);
       setCroppedImage(cropped);
-      setCropSavedAtRotation(rotation); // Memorizamos la rotación en la que quedó fijada
+      setCropSavedAtRotation(rotation);
       onCloseCrop();
     };
 
     if (saveTrigger > 0) runCrop();
   }, [saveTrigger]);
 
-  // 3. Resetear el cuadradito de selección para que siempre salga limpio
+  // Efecto D: Reiniciar el cuadradito SOLO si giras la imagen. 
+  // (Si solo entras y sales de recortar, tu cuadrado se queda donde mismo para poder corregirlo)
   useEffect(() => {
     setCompletedCrop(null);
     setCrop({
@@ -102,22 +114,22 @@ export function EditorInline({ image, rotation, showCrop, onCloseCrop, saveTrigg
       x: 5,
       y: 5,
     });
-    // NUEVO: YA NO borramos el `croppedImage` aquí. Así tu progreso sobrevive.
-  }, [rotation, showCrop]);
+  }, [rotation]);
 
   return (
     <div className="w-full h-full min-h-[300px] bg-[#1E1E1E] flex items-center justify-center overflow-hidden rounded-xl p-4">
       {showCrop ? (
         <ReactCrop
-          key={`crop-key-${rotation}-${showCrop}`} // Obliga a reiniciarse limpio visualmente
+          key={`crop-key-${rotation}`}
           crop={crop}
           onChange={(_, percentCrop) => setCrop(percentCrop)}
           onComplete={(c) => setCompletedCrop(c)}
           style={{ display: "inline-block", maxWidth: "100%" }}
         >
+          {/* MODO EDICIÓN: Te mostramos la foto entera */}
           <img
             ref={imgRef}
-            src={displayImage} // Mostramos siempre la imagen maestra
+            src={baseRotatedImage}
             style={{
               display: "block",
               maxWidth: "100%",
@@ -129,8 +141,9 @@ export function EditorInline({ image, rotation, showCrop, onCloseCrop, saveTrigg
           />
         </ReactCrop>
       ) : (
+        /* MODO VISTA: Te mostramos el resultado de tu tijera */
         <img
-          src={displayImage} // Mostramos siempre la imagen maestra
+          src={finalDisplayImage}
           style={{
             display: "block",
             maxWidth: "100%",
