@@ -1,4 +1,4 @@
-import { Boton } from "../../../components/ui/Boton";
+import { Boton } from "../../../components/ui/boton";
 
 
 
