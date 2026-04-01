@@ -1,80 +1,55 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { Toolbar } from "./ImagenUploader/Toolbar";
+import { Dropzone } from "./ImagenUploader/Dropzone";
+import { EditorInline } from "./ImagenUploader/EditorInline";
 
-export function ImageUploader() {
-  const [imagen, setImagen] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+export function ImagenUploader() {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [rotation, setRotation] = useState(0);
+  const [showCrop, setShowCrop] = useState(false);
+
+  const [saveTrigger, setSaveTrigger] = useState(0);
+
+  const handleSaveCrop = () => {
+    //aquí evitamos guardar si no hay crop válido
+    setSaveTrigger((prev) => prev + 1);
+  };
 
   useEffect(() => {
-    if (!imagen) {
-      setPreviewUrl(null);
+    if (!file) {
+      setPreview(null);
       return;
     }
 
-    const objectUrl = URL.createObjectURL(imagen);
-    setPreviewUrl(objectUrl);
+    const url = URL.createObjectURL(file);
+    setPreview(url);
 
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [imagen]);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
-  const manejarArchivo = (archivo?: File) => {
-    if (archivo && archivo.type.startsWith("image/")) {
-      setImagen(archivo);
-    }
-  };
-
-  const manejarSeleccion = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const archivo = e.target.files?.[0];
-    manejarArchivo(archivo);
-  };
-
-  const manejarDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const archivo = e.dataTransfer.files?.[0];
-    manejarArchivo(archivo);
-  };
+  if (!preview) {
+    return <Dropzone onFileSelect={setFile} />;
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center p-8">
-      <input
-        type="file"
-        accept="image/*"
-        ref={fileInputRef}
-        onChange={manejarSeleccion}
-        className="hidden"
+    <div className="flex gap-4">
+      <EditorInline
+        image={preview}
+        rotation={rotation}
+        showCrop={showCrop}
+        onCloseCrop={() => setShowCrop(false)}
+        saveTrigger={saveTrigger}
       />
 
-      {!previewUrl ? (
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={manejarDrop}
-          className="border-2 border-dashed border-gray-400 rounded-lg p-10 text-center hover:border-blue-500 transition-colors cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <p className="text-gray-600">Arrastrar la foto aquí</p>
-          <p className="my-2">o</p>
-          <button
-            type="button"
-            className="bg-white border border-gray-300 px-4 py-2 mt-2 rounded shadow-sm hover:bg-gray-50"
-          >
-            Seleccionar foto
-          </button>
-        </div>
-      ) : (
-        <div className="relative group">
-          <img
-            src={previewUrl}
-            alt="Vista previa"
-            className="max-w-xs h-auto rounded-lg shadow-md"
-          />
-          <button
-            onClick={() => setImagen(null)}
-            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <Toolbar
+        onRotate={() => setRotation((r) => r + 90)}
+        onDelete={() => setFile(null)}
+        onCrop={() => setShowCrop((c) => !c)}
+        onSaveCrop={handleSaveCrop}
+        showCrop={showCrop}
+      />
     </div>
   );
 }
